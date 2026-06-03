@@ -2,6 +2,10 @@
 // db.php
 require_once __DIR__ . '/config.php';
 
+/**
+ * Get singleton PDO database connection
+ * Uses constants from config.php (DB_HOST, DB_NAME, DB_USER, DB_PASS)
+ */
 function getDb(): PDO
 {
     static $pdo = null;
@@ -15,3 +19,4 @@ function getDb(): PDO
     }
     return $pdo;
 }
+?>
