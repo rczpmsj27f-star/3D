@@ -1,0 +1,311 @@
+<?php
+
+function getDb(): PDO {
+    static $db = null;
+    if ($db === null) {
+        $db = new PDO(
+            'mysql:host=localhost;dbname=u983097270_3D;charset=utf8mb4',
+            'u983097270_ian',
+            'Farrell0405!!',
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]
+        );
+    }
+    return $db;
+}
+
+/* ----------------- CURRENT MODELS / FILAMENTS ----------------- */
+
+function getCurrentModels(): array {
+    $db = getDb();
+    $sql = "
+        SELECT cm.model_id, mv.*
+        FROM current_model cm
+        JOIN model_version mv ON mv.id = cm.version_id
+        ORDER BY mv.name ASC
+    ";
+    return $db->query($sql)->fetchAll();
+}
+
+function getCurrentFilaments(): array {
+    $db = getDb();
+    $sql = "
+        SELECT cf.filament_id, fv.*
+        FROM current_filament cf
+        JOIN filament_version fv ON fv.id = cf.version_id
+        ORDER BY fv.brand, fv.colour
+    ";
+    return $db->query($sql)->fetchAll();
+}
+
+/* ----------------- MODEL / FILAMENT LOOKUPS ----------------- */
+
+function getModelById(int $id): ?array {
+    $db = getDb();
+    $stmt = $db->prepare("
+        SELECT * FROM model_version
+        WHERE model_id = :id
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->execute(['id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function getFilamentById(int $id): ?array {
+    $db = getDb();
+    $stmt = $db->prepare("
+        SELECT * FROM filament_version
+        WHERE filament_id = :id
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->execute(['id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+/* ----------------- COST VARIABLES ----------------- */
+
+function getCostVariables(PDO $db): array {
+    $sql = "
+        SELECT 
+            cv.id AS cost_variable_id,
+            cv.name,
+            cvv.value,
+            cvv.type
+        FROM cost_variable cv
+        JOIN cost_variable_version cvv 
+            ON cvv.id = cv.current_version_id
+        ORDER BY cv.name ASC
+    ";
+
+    $rows = $db->query($sql)->fetchAll();
+
+    $out = [];
+    foreach ($rows as $row) {
+        $out[$row['name']] = [
+            'id'    => (int)$row['cost_variable_id'],
+            'name'  => $row['name'],
+            'value' => (float)$row['value'],
+            'type'  => $row['type'],
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * Cost engine:
+ * - Material: (cost_per_spool / spool_weight_g) * grams * qty
+ * - Electricity: per_kwh * minutes * qty
+ * - Time: per_minute * minutes * qty
+ * - Fixed per model: fixed_per_model * qty
+ * - Fixed per order / other: once per order
+ * - Markup: percentage of subtotal (material + electricity + time + other)
+ */
+function calculateVariableCostsForOrder(
+    PDO $db,
+    array $items,
+    array $selectedNames,
+    array $allVariables
+): array {
+
+    $perOrderCosts = 0.0;
+    $perItemCosts  = [];
+
+    // Extract markup %
+    $markupPercent = 0.0;
+    foreach ($selectedNames as $name) {
+        if (isset($allVariables[$name]) && $allVariables[$name]['type'] === 'percentage_markup') {
+            $markupPercent = (float)$allVariables[$name]['value'];
+        }
+    }
+
+    // Per-order fixed costs
+    foreach ($selectedNames as $name) {
+        if (!isset($allVariables[$name])) continue;
+        $var = $allVariables[$name];
+
+        if ($var['type'] === 'fixed_per_order' || $var['type'] === 'other') {
+            $perOrderCosts += (float)$var['value'];
+        }
+    }
+
+    // Per-item costs
+    foreach ($items as $item) {
+
+        $id      = (int)$item['id'];
+        $qty     = (int)$item['quantity'];
+        $grams   = (int)$item['estimated_filament_use_g'];
+        $minutes = (int)$item['estimated_print_time_min'];
+
+        $cost = 0.0;
+
+        // MATERIAL COST (cost per spool / spool weight)
+        if (!empty($item['filament_version_id'])) {
+
+            $stmt = $db->prepare("
+                SELECT cost_per_spool, spool_weight_g
+                FROM filament_version
+                WHERE id = :vid
+                LIMIT 1
+            ");
+            $stmt->execute(['vid' => $item['filament_version_id']]);
+            $fv = $stmt->fetch();
+
+            if ($fv && $fv['spool_weight_g'] > 0) {
+
+                $costPerG = ((float)$fv['cost_per_spool']) / (float)$fv['spool_weight_g'];
+                $materialCost = $costPerG * $grams;
+
+                $cost += $materialCost * $qty;
+            }
+        }
+
+        // ELECTRICITY COST (per minute)
+        foreach ($selectedNames as $name) {
+            if (!isset($allVariables[$name])) continue;
+            $var = $allVariables[$name];
+
+            if ($var['type'] === 'per_kwh') {
+                $cost += ((float)$var['value'] * $minutes) * $qty;
+            }
+        }
+
+        // TIME COST (per minute)
+        foreach ($selectedNames as $name) {
+            if (!isset($allVariables[$name])) continue;
+            $var = $allVariables[$name];
+
+            if ($var['type'] === 'per_minute') {
+                $cost += ((float)$var['value'] * $minutes) * $qty;
+            }
+        }
+
+        // FIXED PER MODEL
+        foreach ($selectedNames as $name) {
+            if (!isset($allVariables[$name])) continue;
+            $var = $allVariables[$name];
+
+            if ($var['type'] === 'fixed_per_model') {
+                $cost += ((float)$var['value'] * $qty);
+            }
+        }
+
+        $perItemCosts[$id] = $cost;
+    }
+
+    // SUBTOTAL
+    $subtotal = array_sum($perItemCosts) + $perOrderCosts;
+
+    // MARKUP
+    $markup = $subtotal * ($markupPercent / 100.0);
+
+    // TOTAL BEFORE POSTAGE
+    $total = $subtotal + $markup;
+
+    return [
+        'per_order'      => $perOrderCosts,
+        'per_item'       => $perItemCosts,
+        'markup'         => $markup,
+        'subtotal'       => $subtotal,
+        'total'          => $total,
+        'markup_percent' => $markupPercent,
+    ];
+}
+
+/* ----------------- STATUSES (fixed lists) ----------------- */
+
+function getOrderStatuses(): array {
+    return [
+        'Received',
+        'In progress',
+        'On hold',
+        'Awaiting stock',
+        'Completed',
+        'Dispatched',
+        'Cancelled'
+    ];
+}
+
+function getPaymentStatuses(): array {
+    return [
+        'Unpaid',
+        'Part paid',
+        'Paid',
+        'Refunded'
+    ];
+}
+
+/* ----------------- POSTAGE ----------------- */
+
+function getPostageServices(PDO $db): array {
+    $sql = "
+        SELECT id, service_name, base_price, max_weight_g, active, is_royal_mail
+        FROM postage_services
+        WHERE active = 1
+        ORDER BY service_name ASC
+    ";
+    return $db->query($sql)->fetchAll();
+}
+
+function getOrderTotalWeight(PDO $db, int $orderId): int {
+    $stmt = $db->prepare("
+        SELECT SUM(quantity * estimated_filament_use_g) AS total_weight
+        FROM order_items
+        WHERE order_id = :oid
+    ");
+    $stmt->execute(['oid' => $orderId]);
+    $row = $stmt->fetch();
+    return (int)($row['total_weight'] ?? 0);
+}
+
+function recommendPostageService(array $services, int $weightG): ?array {
+    foreach ($services as $svc) {
+        if ($svc['max_weight_g'] === null || $weightG <= (int)$svc['max_weight_g']) {
+            return $svc;
+        }
+    }
+    return null;
+}
+
+/* ----------------- FILAMENT VERSION UPDATE ----------------- */
+
+function updateFilamentVersion(PDO $db, int $filamentId, array $data, string $reason = 'manual'): void {
+    $stmt = $db->prepare("
+        INSERT INTO filament_version
+            (filament_id, brand, colour, type, cost_per_spool, spool_weight_g,
+             approx_length_m, current_weight_g, low_stock_threshold_g, reason, created_at)
+        VALUES
+            (:filament_id, :brand, :colour, :type, :cost_per_spool, :spool_weight_g,
+             :approx_length_m, :current_weight_g, :low_stock_threshold_g, :reason, NOW())
+    ");
+    $stmt->execute([
+        'filament_id'           => $filamentId,
+        'brand'                 => $data['brand'],
+        'colour'                => $data['colour'],
+        'type'                  => $data['type'],
+        'cost_per_spool'        => $data['cost_per_spool'],
+        'spool_weight_g'        => $data['spool_weight_g'],
+        'approx_length_m'       => $data['approx_length_m'],
+        'current_weight_g'      => $data['current_weight_g'],
+        'low_stock_threshold_g' => $data['low_stock_threshold_g'],
+        'reason'                => $reason,
+    ]);
+
+    $newVersionId = (int)$db->lastInsertId();
+
+    $stmt = $db->prepare("
+        UPDATE current_filament
+        SET version_id = :vid
+        WHERE filament_id = :fid
+    ");
+    $stmt->execute([
+        'vid' => $newVersionId,
+        'fid' => $filamentId,
+    ]);
+}
+
+?>
