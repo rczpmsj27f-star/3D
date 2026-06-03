@@ -1,0 +1,26 @@
+# Environment and configuration
+.env
+.env.local
+config.php
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.old.php
+*.bak
+
+# Logs
+*.log
+
+# Dependency directories (if using Composer)
+vendor/
+composer.lock
