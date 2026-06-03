@@ -687,10 +687,8 @@ include __DIR__ . '/header.php';
                     ? ($it['filament_brand'] . ' ' . $it['filament_colour'] . ' (' . $it['filament_type'] . ')')
                     : '-';
 
-                $desc = $it['custom_description']
-                    ?: ($it['is_custom']
-                        ? $it['custom_description']
-                        : ($it['model_name'] ?: ('Model version ID ' . $it['model_version_id'])));
+                // FIXED: Simplified description logic - removed redundant check
+                $desc = $it['custom_description'] ?: ($it['model_name'] ?? ('Model version ID ' . $it['model_version_id']));
             ?>
             <tr>
                 <td><?= (int)$it['id'] ?></td>
