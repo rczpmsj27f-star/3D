@@ -1,20 +1,6 @@
 <?php
-
-function getDb(): PDO {
-    static $db = null;
-    if ($db === null) {
-        $db = new PDO(
-            'mysql:host=localhost;dbname=u983097270_3D;charset=utf8mb4',
-            'u983097270_ian',
-            'Farrell0405!!',
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            ]
-        );
-    }
-    return $db;
-}
+// functions.php
+require_once __DIR__ . '/db.php';
 
 /* ----------------- CURRENT MODELS / FILAMENTS ----------------- */
 
