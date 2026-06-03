@@ -17,6 +17,7 @@ $systemVars = [
 $isSystem = in_array($current['name'], $systemVars, true);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $data = [
         'type' => $_POST['type'] ?? $current['type'],
         'value' => (float)($_POST['value'] ?? $current['value']),
@@ -39,6 +40,7 @@ include __DIR__ . '/header.php';
 <h1>Edit cost variable #<?= (int)$id ?></h1>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
     <div class="form-row">
         <label>Name</label>
         <input value="<?= htmlspecialchars($current['name']) ?>" disabled>

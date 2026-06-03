@@ -13,6 +13,7 @@ if (!$current) { header('Location: models.php'); exit; }
 $filaments = getCurrentFilaments($db);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
 
     /* ------------------------------
        Extract posted values
@@ -75,6 +76,7 @@ include __DIR__ . '/header.php';
 <h1>Edit model #<?= (int)$id ?></h1>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
 
     <div class="form-row">
         <label>Name</label>

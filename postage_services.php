@@ -3,6 +3,7 @@ require_once __DIR__ . '/functions.php';
 $db = getDb();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     if (isset($_POST['save_service'])) {
         $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $data = [
@@ -60,6 +61,7 @@ include __DIR__ . '/header.php';
 <div class="card">
     <h2>Add / edit service</h2>
     <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
         <input type="hidden" name="id" id="svc-id">
         <div class="form-row">
             <label>Name</label>
@@ -114,6 +116,7 @@ include __DIR__ . '/header.php';
                         Edit
                     </button>
                     <form method="post" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                         <button class="btn btn-danger" type="submit" name="delete_service"
                                 value="<?= (int)$s['id'] ?>"
                                 onclick="return confirm('Delete this service?');">

@@ -1,202 +1,214 @@
-<?php
-// header.php
-require_once __DIR__ . '/config.php';
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title><?= htmlspecialchars(APP_NAME) ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= defined('APP_NAME') ? htmlspecialchars(APP_NAME) : '3D Print Manager' ?></title>
     <style>
-        :root {
-            --bg: #f5f5f7;
-            --card-bg: #ffffff;
-            --border: #ddd;
-            --text: #222;
-            --muted: #666;
-            --primary: #0069d9;
-            --primary-dark: #0053ad;
-            --danger: #dc3545;
-            --warning: #ffc107;
-            --success: #28a745;
-        }
-        * { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: border-box; }
+
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+            font-size: 0.95rem;
         }
-        header {
+
+        nav {
             background: #111827;
-            color: #fff;
-            padding: 10px 20px;
+            color: white;
+            padding: 0 1.5rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            height: 52px;
         }
-        header .brand {
-            font-weight: 600;
-            letter-spacing: 0.03em;
-        }
-        nav a {
-            color: #e5e7eb;
-            margin-left: 15px;
+
+        nav .brand {
+            font-weight: 700;
+            font-size: 1rem;
+            color: white;
             text-decoration: none;
-            font-size: 0.95rem;
         }
-        nav a:hover {
-            color: #ffffff;
-            text-decoration: underline;
+
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            gap: 0.25rem;
+            align-items: center;
         }
+
+        nav ul li a {
+            color: #d1d5db;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            transition: background 0.15s;
+        }
+
+        nav ul li a:hover { background: #374151; color: white; }
+
+        nav .logout {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border: 1px solid #374151;
+            border-radius: 4px;
+        }
+
+        nav .logout:hover { color: white; border-color: #6b7280; }
+
         main {
-            padding: 20px;
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
+            padding: 1.5rem;
         }
-        h1, h2, h3 {
-            margin-top: 0;
-        }
+
+        h1 { font-size: 1.5rem; margin: 0 0 1.25rem; }
+        h2 { font-size: 1.1rem; margin: 0 0 1rem; }
+
         .card {
-            background: var(--card-bg);
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            padding: 15px 20px;
-            margin-bottom: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
         }
+
         table {
-            border-collapse: collapse;
             width: 100%;
-            background: var(--card-bg);
+            border-collapse: collapse;
+            font-size: 0.875rem;
         }
+
         th, td {
-            border: 1px solid var(--border);
-            padding: 8px 10px;
-            font-size: 0.9rem;
-            vertical-align: top;
-        }
-        th {
-            background: #f3f4f6;
             text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid #e5e7eb;
         }
+
+        th { font-weight: 600; background: #f9fafb; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f9fafb; }
+
         .btn {
             display: inline-block;
-            padding: 6px 12px;
-            background: var(--primary);
-            color: #fff;
-            text-decoration: none;
-            border-radius: 4px;
-            font-size: 0.85rem;
+            padding: 7px 14px;
+            background: #1d4ed8;
+            color: white;
             border: none;
-            cursor: pointer;
-        }
-        .btn:hover {
-            background: var(--primary-dark);
-        }
-        .btn-danger {
-            background: var(--danger);
-        }
-        .btn-danger:hover {
-            background: #b21f2d;
-        }
-        .btn-secondary {
-            background: #6c757d;
-        }
-        .btn-secondary:hover {
-            background: #545b62;
-        }
-        .low-stock {
-            background: #fff7e6;
-        }
-        .form-row {
-            margin-bottom: 10px;
-            max-width: 450px;
-        }
-        label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 3px;
-            font-size: 0.9rem;
-        }
-        input, select, textarea {
-            width: 100%;
-            padding: 6px 8px;
-            font-size: 0.9rem;
             border-radius: 4px;
-            border: 1px solid var(--border);
+            cursor: pointer;
+            font-size: 0.875rem;
+            text-decoration: none;
+            transition: background 0.15s;
         }
-        textarea {
-            min-height: 70px;
-            resize: vertical;
+
+        .btn:hover { background: #1e40af; }
+
+        .btn-secondary {
+            background: #6b7280;
         }
-        .warning {
-            color: var(--danger);
+
+        .btn-secondary:hover { background: #4b5563; }
+
+        .btn-danger {
+            background: #dc2626;
+        }
+
+        .btn-danger:hover { background: #b91c1c; }
+
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 0.8rem;
+        }
+
+        .form-row {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 1rem;
+            max-width: 480px;
+        }
+
+        .form-row label {
+            font-size: 0.8rem;
             font-weight: 600;
+            margin-bottom: 4px;
+            color: #374151;
         }
-        .badge {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 0.75rem;
+
+        .form-row input,
+        .form-row select,
+        .form-row textarea {
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-family: inherit;
         }
-        .badge-warning { background: var(--warning); }
-        .badge-success { background: var(--success); color: #fff; }
-        .badge-muted { background: #e5e7eb; color: #374151; }
+
+        .form-row textarea { min-height: 80px; resize: vertical; }
+
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
         }
+
         .summary-item {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
             border-radius: 6px;
-            padding: 10px 12px;
-            font-size: 0.9rem;
+            padding: 12px 16px;
         }
-        .summary-label {
-            color: var(--muted);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-        .summary-value {
-            font-weight: 600;
-            margin-top: 3px;
-        }
-        .text-right { text-align: right; }
-        .text-muted { color: var(--muted); }
-        .mt-1 { margin-top: 4px; }
-        .mt-2 { margin-top: 8px; }
-        .mt-3 { margin-top: 12px; }
-        .mb-1 { margin-bottom: 4px; }
-        .mb-2 { margin-bottom: 8px; }
-        .mb-3 { margin-bottom: 12px; }
-        .flex { display: flex; align-items: center; }
-        .flex-between { justify-content: space-between; }
-        .chip {
+
+        .summary-label { font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+        .summary-value { font-size: 1.25rem; font-weight: 700; margin-top: 4px; }
+
+        .badge {
             display: inline-block;
             padding: 2px 8px;
             border-radius: 999px;
-            background: #e5e7eb;
             font-size: 0.75rem;
+            font-weight: 600;
         }
-        @media (max-width: 768px) {
-            main { padding: 10px; }
-            header { flex-direction: column; align-items: flex-start; }
-            nav { margin-top: 8px; }
+
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-danger  { background: #fee2e2; color: #991b1b; }
+
+        .text-muted { color: #6b7280; font-size: 0.85rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-3 { margin-bottom: 1rem; }
+
+        .warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 4px;
+            padding: 10px 14px;
+            color: #92400e;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
         }
+
+        .low-stock td { background: #fff7ed; }
     </style>
 </head>
 <body>
-<header>
-    <div class="brand"><?= htmlspecialchars(APP_NAME) ?></div>
-    <nav>
-        <a href="index.php">Dashboard</a>
-        <a href="filaments.php">Filaments</a>
-        <a href="models.php">Models</a>
-        <a href="cost_variables.php">Cost variables</a>
-        <a href="orders.php">Orders</a>
-    </nav>
-</header>
+<nav>
+    <a class="brand" href="index.php">3D Print Manager</a>
+    <ul>
+        <li><a href="index.php">Dashboard</a></li>
+        <li><a href="filaments.php">Filaments</a></li>
+        <li><a href="models.php">Models</a></li>
+        <li><a href="cost_variables.php">Cost variables</a></li>
+        <li><a href="orders.php">Orders</a></li>
+    </ul>
+    <a class="logout" href="logout.php">Log out</a>
+</nav>
 <main>

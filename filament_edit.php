@@ -25,6 +25,10 @@ if (!$filament) {
 }
 
 /* Save new version */
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_filament'])) {
 
     $data = [
@@ -51,6 +55,7 @@ include __DIR__ . '/header.php';
 
 <div class="card">
     <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
         <input type="hidden" name="save_filament" value="1">
 
         <div class="form-row">

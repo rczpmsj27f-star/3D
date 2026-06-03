@@ -48,6 +48,11 @@ if (!empty($order['cost_variables_json'])) {
     }
 }
 
+/* CSRF check for all POST requests */
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
+}
+
 /* Delete entire order */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_order'])) {
     $stmt = $db->prepare("DELETE FROM order_items WHERE order_id = :id");
@@ -409,6 +414,7 @@ include __DIR__ . '/header.php';
 <div class="card">
     <h2 class="mb-2">Order details</h2>
     <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
         <input type="hidden" name="update_order" value="1">
 
         <div class="form-row">
@@ -493,6 +499,7 @@ include __DIR__ . '/header.php';
 <div class="card">
     <h2 class="mb-2">Variable costs</h2>
     <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
         <input type="hidden" name="update_cost_variables" value="1">
 
         <table>
@@ -535,64 +542,14 @@ include __DIR__ . '/header.php';
     <h2 class="mb-2">Order summary</h2>
 
     <?php
-        $materialCost    = 0.0;
-        $electricityCost = 0.0;
-        $timeCost        = 0.0;
-        $otherCosts      = 0.0;
-
-        foreach ($items as $it) {
-            $qty     = (int)$it['quantity'];
-            $grams   = (int)$it['estimated_filament_use_g'];
-            $minutes = (int)$it['estimated_print_time_min'];
-
-            // MATERIAL
-            if (!empty($it['filament_version_id'])) {
-                $stmt = $db->prepare("
-                    SELECT cost_per_spool, spool_weight_g, current_weight_g
-                    FROM filament_version
-                    WHERE id = :vid
-                    LIMIT 1
-                ");
-                $stmt->execute(['vid' => $it['filament_version_id']]);
-                $fv = $stmt->fetch();
-
-                if ($fv && $fv['spool_weight_g'] > 0) {
-                    $costPerG = ((float)$fv['cost_per_spool']) / (float)$fv['spool_weight_g'];
-                    $materialCost += ($costPerG * $grams) * $qty;
-                }
-            }
-
-            // ELECTRICITY + TIME + OTHER (per-item)
-            foreach ($selectedCostVarNames as $name) {
-                if (!isset($allCostVars[$name])) {
-                    continue;
-                }
-                $var   = $allCostVars[$name];
-                $value = (float)$var['value'];
-
-                switch ($var['type']) {
-                    case 'per_kwh':
-                        $electricityCost += ($value * $minutes) * $qty;
-                        break;
-
-                    case 'per_minute':
-                        $timeCost += ($value * $minutes) * $qty;
-                        break;
-
-                    case 'fixed_per_model':
-                        $otherCosts += ($value * $qty);
-                        break;
-                }
-            }
-        }
-
-        // per-order fixed cost (if present in $varCosts)
-        $otherCosts += $varCosts['per_order'] ?? 0.0;
-
-        $subtotal      = $varCosts['subtotal']       ?? 0.0;
-        $markup        = $varCosts['markup']         ?? 0.0;
-        $totalCost     = $varCosts['total']          ?? 0.0;
-        $markupPercent = $varCosts['markup_percent'] ?? 0.0;
+        $materialCost    = $varCosts['material'];
+        $electricityCost = $varCosts['electricity'];
+        $timeCost        = $varCosts['time_cost'];
+        $otherCosts      = $varCosts['other'];
+        $subtotal        = $varCosts['subtotal'];
+        $markup          = $varCosts['markup'];
+        $totalCost       = $varCosts['total'];
+        $markupPercent   = $varCosts['markup_percent'];
     ?>
 
     <div class="summary-grid">
@@ -704,6 +661,7 @@ include __DIR__ . '/header.php';
                     <button class="btn btn-secondary" type="button"
                             onclick="toggleEditPanel(<?= (int)$it['id'] ?>)">Edit</button>
                     <form method="post" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                         <button class="btn btn-danger" type="submit"
                                 name="delete_item" value="<?= (int)$it['id'] ?>"
                                 onclick="return confirm('Delete this item?');">
@@ -716,6 +674,7 @@ include __DIR__ . '/header.php';
                 <td colspan="10">
                     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;">
                         <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                             <input type="hidden" name="update_item" value="1">
                             <input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>">
 
@@ -774,6 +733,7 @@ include __DIR__ . '/header.php';
 <div class="card">
     <h2 class="mb-2">Add item</h2>
     <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
         <input type="hidden" name="add_item" value="1">
 
         <div class="form-row">
