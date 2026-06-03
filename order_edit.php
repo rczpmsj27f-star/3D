@@ -90,17 +90,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_cost_variables
     exit;
 }
 
-/**
- * Simple unit price calculation:
- * - If user supplies unit_price, use it.
- * - Otherwise default to 0.00 (you can extend this later if you want auto-pricing).
- */
-function calculateItemUnitPriceFromPost(?float $postedUnitPrice): float
-{
-    if ($postedUnitPrice !== null && $postedUnitPrice >= 0) {
-        return $postedUnitPrice;
+function autoUnitPrice(
+    PDO $db,
+    ?int $filamentVersionId,
+    int $grams,
+    int $minutes,
+    array $selectedNames,
+    array $allCostVars
+): float {
+    $price = 0.0;
+
+    if ($filamentVersionId) {
+        $stmt = $db->prepare("SELECT cost_per_spool, spool_weight_g FROM filament_version WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => $filamentVersionId]);
+        $fv = $stmt->fetch();
+        if ($fv && $fv['spool_weight_g'] > 0) {
+            $price += ((float)$fv['cost_per_spool'] / (float)$fv['spool_weight_g']) * $grams;
+        }
     }
-    return 0.0;
+
+    foreach ($selectedNames as $name) {
+        if (!isset($allCostVars[$name])) continue;
+        $var = $allCostVars[$name];
+        if ($var['type'] === 'per_minute' || $var['type'] === 'per_kwh') {
+            $price += (float)$var['value'] * $minutes;
+        }
+    }
+
+    return $price;
 }
 
 /* Add item */
@@ -153,7 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
         ? (float)$_POST['unit_price']
         : null;
 
-    $unitPrice = calculateItemUnitPriceFromPost($postedUnitPrice);
+    $unitPrice = $postedUnitPrice !== null
+        ? $postedUnitPrice
+        : autoUnitPrice($db, $filamentVersionId, $estUse, $timeMin, $selectedCostVarNames, $allCostVars);
     $lineTotal = $unitPrice * $qty;
 
     $stmt = $db->prepare("
@@ -209,12 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_item'])) {
             ? (float)$_POST['unit_price']
             : null;
 
-        if ($postedUnitPrice !== null) {
-            $unitPrice = calculateItemUnitPriceFromPost($postedUnitPrice);
-        } else {
-            $unitPrice = (float)$item['unit_price'];
-        }
-
+        $unitPrice = $postedUnitPrice !== null
+            ? $postedUnitPrice
+            : autoUnitPrice($db, (int)$item['filament_version_id'] ?: null, $estUse, $timeMin, $selectedCostVarNames, $allCostVars);
         $lineTotal = $unitPrice * $qty;
 
         $stmt = $db->prepare("
@@ -260,9 +276,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_item'])) {
 
 /* Update order (status, payment, notes, postage, stock) */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_order'])) {
-    $newStatus  = $_POST['status'] ?? $order['status'];
-    $newPayment = $_POST['payment_status'] ?? $order['payment_status'];
-    $notes      = $_POST['notes'] ?? $order['notes'];
+    $customerName = $_POST['customer_name'] ?? $order['customer_name'];
+    $newStatus    = $_POST['status'] ?? $order['status'];
+    $newPayment   = $_POST['payment_status'] ?? $order['payment_status'];
+    $notes        = $_POST['notes'] ?? $order['notes'];
 
     $postageId   = !empty($_POST['postage_id']) ? (int)$_POST['postage_id'] : null;
     $postageCost = 0.0;
@@ -337,7 +354,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_order'])) {
 
     $stmt = $db->prepare("
         UPDATE orders
-        SET status         = :status,
+        SET customer_name  = :customer_name,
+            status         = :status,
             payment_status = :payment_status,
             notes          = :notes,
             postage_id     = :postage_id,
@@ -347,6 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_order'])) {
         WHERE id = :id
     ");
     $stmt->execute([
+        'customer_name'  => $customerName,
         'status'         => $newStatus,
         'payment_status' => $newPayment,
         'notes'          => $notes,
@@ -356,6 +375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_order'])) {
         'id'             => $id,
     ]);
 
+    $order['customer_name']  = $customerName;
     $order['status']         = $newStatus;
     $order['payment_status'] = $newPayment;
     $order['notes']          = $notes;
@@ -419,7 +439,7 @@ include __DIR__ . '/header.php';
 
         <div class="form-row">
             <label>Customer name</label>
-            <input value="<?= htmlspecialchars($order['customer_name']) ?>" disabled>
+            <input name="customer_name" value="<?= htmlspecialchars($order['customer_name']) ?>">
         </div>
 
         <div class="form-row">
@@ -712,7 +732,7 @@ include __DIR__ . '/header.php';
                                     <label style="font-size:0.8rem;font-weight:600;">Unit price override (£)</label>
                                     <input type="number" step="0.01" name="unit_price">
                                     <div class="text-muted" style="font-size:0.75rem;margin-top:2px;">
-                                        Leave blank to keep current.
+                                        Leave blank to auto-calculate.
                                     </div>
                                 </div>
                             </div>
